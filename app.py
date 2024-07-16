@@ -138,7 +138,7 @@ def map_phonemes_to_visemes_with_offsets(transcription):
         phoneme = item['char']
         start_offset = item['start_offset']
         end_offset = item['end_offset']
-        viseme = phonemeToVisemeMapping.get(phoneme, "SIL")  # Default to "SIL" if phoneme not found
+        viseme = phonemeToVisemeMapping.get(phoneme, "Not Found")  # Default to "SIL" if phoneme not found
         visemes_with_offsets.append({
             'viseme': viseme,
             'start_offset': start_offset,
