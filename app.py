@@ -120,13 +120,13 @@ phonemeToVisemeMapping = {
     "p": "B_M_P",
     "b": "B_M_P",
     "m": "B_M_P",
-    "[PAD]": "SIL",  # Assuming pad token is treated as silence
-    "[UNK]": "SIL",  # Assuming unknown token is treated as silence
+    "[PAD]": "SIL",  
+    "[UNK]": "SIL",  
     "d͡ʒ": "CH_J",
     "eɪ": "A_E",
     "oʊ": "Oh",
     "t͡ʃ": "CH_J",
-    "|": "SIL",  # Assuming this is a separator or silence
+    "|": "SIL", 
     "ɚ": "Er",
     "ɡ": "K_G"
 }
