@@ -4,6 +4,7 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 import torch
 import librosa
 import numpy as np
+from streamlit_audio_recorder import audio_recorder
 
 # Set page configuration
 st.set_page_config(
