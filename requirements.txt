@@ -3,4 +3,4 @@ torch
 transformers
 librosa
 phonemizer
-streamlit_audio_recorder
+streamlit-audiorecorder
