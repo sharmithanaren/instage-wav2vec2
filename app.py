@@ -3,7 +3,6 @@ import time
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 import torch
 import librosa
-import numpy as np
 
 # Set page configuration
 st.set_page_config(
@@ -73,8 +72,8 @@ st.markdown(
 # Load the processor and model directly for more control
 @st.cache_resource
 def load_model():
-    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-960h")
-    model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-960h")
+    processor = Wav2Vec2Processor.from_pretrained("bookbot/wav2vec2-ljspeech-gruut")
+    model = Wav2Vec2ForCTC.from_pretrained("bookbot/wav2vec2-ljspeech-gruut")
     return processor, model
 
 processor, model = load_model()
@@ -132,6 +131,7 @@ phonemeToVisemeMapping = {
     "ɡ": "K_G"
 }
 
+
 def map_phonemes_to_visemes_with_offsets(transcription):
     visemes_with_offsets = []
     for item in transcription['char_offsets'][0]:
@@ -148,32 +148,9 @@ def map_phonemes_to_visemes_with_offsets(transcription):
         })
     return visemes_with_offsets
 
-def process_audio_in_batches(audio, rate, batch_duration_ms=300):
-    batch_size = int(rate * (batch_duration_ms / 1000.0))
-    total_samples = len(audio)
-    visemes_with_offsets = []
-    for start in range(0, total_samples, batch_size):
-        end = min(start + batch_size, total_samples)
-        audio_batch = audio[start:end]
-
-        # Tokenize the input audio
-        inputs = processor(audio_batch, return_tensors="pt", sampling_rate=rate)
-
-        # Perform inference
-        with torch.no_grad():
-            logits = model(inputs.input_values).logits
-
-        # Decode the logits to text with character offsets
-        predicted_ids = torch.argmax(logits, dim=-1)
-        transcription = processor.batch_decode(predicted_ids, output_char_offsets=True, clean_up_tokenization_spaces=True)
-
-        # Map the phonemes to visemes with offsets
-        batch_visemes_with_offsets = map_phonemes_to_visemes_with_offsets(transcription)
-        visemes_with_offsets.extend(batch_visemes_with_offsets)
-    
-    return visemes_with_offsets
 
 # File uploader for audio file
+#st.markdown('<div class="upload"><input type="file" id="file-upload" accept=".wav,.mp3"></div>', unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
 
 if uploaded_file is not None:
@@ -184,11 +161,19 @@ if uploaded_file is not None:
     # Load and preprocess the audio file
     audio, rate = librosa.load(uploaded_file, sr=16000)
 
+    # Tokenize the input audio
+    inputs = processor(audio, return_tensors="pt", sampling_rate=rate)
+
     # Start time measurement
     start = time.time()
 
-    # Process audio in batches to ensure completion within 300 ms
-    viseme_transcription_with_offsets = process_audio_in_batches(audio, rate)
+    # Perform inference
+    with torch.no_grad():
+        logits = model(inputs.input_values).logits
+
+    # Decode the logits to text with character offsets
+    predicted_ids = torch.argmax(logits, dim=-1)
+    transcription = processor.batch_decode(predicted_ids, output_char_offsets=True, clean_up_tokenization_spaces=True)
 
     # End time measurement
     end = time.time()
@@ -200,6 +185,9 @@ if uploaded_file is not None:
     st.markdown('<div class="time-taken">Time Taken: {:.2f} ms</div>'.format(time_taken_ms), unsafe_allow_html=True)
     st.markdown('<div class="transcription">Transcription:</div>', unsafe_allow_html=True)
     st.write(transcription)
+
+    # Map the phonemes to visemes with offsets
+    viseme_transcription_with_offsets = map_phonemes_to_visemes_with_offsets(transcription)
 
     # Display the viseme transcription with offsets
     st.markdown('<div class="json-output">Viseme Transcription with Offsets:</div>', unsafe_allow_html=True)
