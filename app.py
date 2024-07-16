@@ -4,8 +4,7 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 import torch
 import librosa
 import numpy as np
-from streamlit_audio_recorder import audio_recorder
-
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
 # Set page configuration
 st.set_page_config(
     page_title="Audio to Viseme Transcription",
