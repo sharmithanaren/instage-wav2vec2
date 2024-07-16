@@ -72,7 +72,7 @@ st.markdown(
 # Load the processor and model directly for more control
 @st.cache_resource
 def load_model():
-    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-xlsr-53-espeak-cv-ftt")
+    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-xlsr-53-espeak-cv-ft")
     model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-xlsr-53-espeak-cv-ft")
     return processor, model
 
