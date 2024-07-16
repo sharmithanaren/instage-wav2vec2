@@ -5,6 +5,7 @@ import torch
 import librosa
 import numpy as np
 from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+
 # Set page configuration
 st.set_page_config(
     page_title="Audio to Viseme Transcription",
@@ -73,8 +74,8 @@ st.markdown(
 # Load the processor and model directly for more control
 @st.cache_resource
 def load_model():
-    processor = Wav2Vec2Processor.from_pretrained("bookbot/wav2vec2-ljspeech-gruut")
-    model = Wav2Vec2ForCTC.from_pretrained("bookbot/wav2vec2-ljspeech-gruut")
+    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-960h")
+    model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-960h")
     return processor, model
 
 processor, model = load_model()
@@ -175,24 +176,38 @@ def process_audio_chunks(audio, rate, chunk_duration=5):
     
     return visemes_with_offsets
 
+class AudioProcessor(AudioProcessorBase):
+    def recv(self, frame):
+        audio = frame.to_ndarray()
+        return av.AudioFrame.from_ndarray(audio, format="s16")
+
 # File uploader for audio file
 uploaded_file = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
 
 # Audio recorder
-audio_data = st.audio("Record an audio file", type=["wav"])
+webrtc_ctx = webrtc_streamer(
+    key="audio-recorder",
+    mode=WebRtcMode.SENDRECV,
+    audio_processor_factory=AudioProcessor,
+    media_stream_constraints={"audio": True},
+    async_processing=True,
+)
 
-if uploaded_file is not None or audio_data is not None:
+if uploaded_file is not None or webrtc_ctx.audio_receiver:
     if uploaded_file is not None:
         audio_file = uploaded_file
+        # Load and preprocess the audio file
+        audio, rate = librosa.load(audio_file, sr=16000)
     else:
-        audio_file = audio_data
+        audio_frames = webrtc_ctx.audio_receiver.get_frames()
+        if audio_frames:
+            audio_frame = audio_frames[0]
+            audio = audio_frame.to_ndarray()
+            rate = audio_frame.sample_rate
 
     st.markdown('<div class="audio">', unsafe_allow_html=True)
-    st.audio(audio_file, format='audio/wav')
+    st.audio(audio_file if uploaded_file is not None else audio_frame, format='audio/wav')
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # Load and preprocess the audio file
-    audio, rate = librosa.load(audio_file, sr=16000)
 
     # Start time measurement
     start = time.time()
