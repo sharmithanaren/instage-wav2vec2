@@ -137,7 +137,7 @@ def map_phonemes_to_visemes_with_offsets(transcription):
     return visemes_with_offsets
 
 # File uploader for audio file
-st.markdown('<div class="upload"><input type="file" id="file-upload" accept=".wav,.mp3"></div>', unsafe_allow_html=True)
+#st.markdown('<div class="upload"><input type="file" id="file-upload" accept=".wav,.mp3"></div>', unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
 
 if uploaded_file is not None:
