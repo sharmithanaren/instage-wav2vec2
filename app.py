@@ -136,15 +136,18 @@ def map_phonemes_to_visemes_with_offsets(transcription):
     visemes_with_offsets = []
     for item in transcription['char_offsets'][0]:
         phoneme = item['char']
+        if phoneme == " ":  # Skip if the phoneme is a space
+            continue
         start_offset = item['start_offset']
         end_offset = item['end_offset']
-        viseme = phonemeToVisemeMapping.get(phoneme, "Not Found")  # Default to "SIL" if phoneme not found
+        viseme = phonemeToVisemeMapping.get(phoneme, "Not Found")  # Default to "Not Found" if phoneme not found
         visemes_with_offsets.append({
             'viseme': viseme,
             'start_offset': start_offset,
             'end_offset': end_offset
         })
     return visemes_with_offsets
+
 
 # File uploader for audio file
 #st.markdown('<div class="upload"><input type="file" id="file-upload" accept=".wav,.mp3"></div>', unsafe_allow_html=True)
