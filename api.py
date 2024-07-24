@@ -14,9 +14,12 @@ load_dotenv()
 # Initialize the FastAPI app
 app = FastAPI()
 
+# Check if CUDA is available and set the device accordingly
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # Load the processor and model
 processor = Wav2Vec2Processor.from_pretrained("bookbot/wav2vec2-ljspeech-gruut")
-model = Wav2Vec2ForCTC.from_pretrained("bookbot/wav2vec2-ljspeech-gruut")
+model = Wav2Vec2ForCTC.from_pretrained("bookbot/wav2vec2-ljspeech-gruut").to(device)
 
 # Deepgram API details
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
@@ -76,6 +79,8 @@ def process_audio_file(audio_file_path):
 
     # Tokenize the input audio
     inputs = processor(audio, return_tensors="pt", sampling_rate=rate)
+
+    inputs = {key: value.to(device) for key, value in inputs.items()}
 
     # Start time measurement
     start = time.time()
