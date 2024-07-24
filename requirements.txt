@@ -4,3 +4,5 @@ librosa
 phonemizer
 deepgram-sdk
 python-dotenv
+uvicorn
+fastapi
