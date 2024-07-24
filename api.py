@@ -113,6 +113,10 @@ def synthesize_audio(text, output_file_path):
                 if chunk:
                     output_file.write(chunk)
 
+@app.get("/")
+async def read_root():
+    return {"message": "API is running"}
+
 @app.post("/process")
 async def process_text(input_text: str = Form(...)):
     # Create or truncate the output file
