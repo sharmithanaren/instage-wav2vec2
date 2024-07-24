@@ -1,5 +1,6 @@
-streamlit
 torch
 transformers
 librosa
 phonemizer
+deepgram-sdk
+python-dotenv
