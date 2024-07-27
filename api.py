@@ -8,6 +8,8 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 from fastapi import FastAPI, Form, File, UploadFile
 from deepgram import DeepgramClient, SpeakOptions
 from dotenv import load_dotenv
+from pydantic import BaseModel
+
 
 # Load environment variables
 load_dotenv()
