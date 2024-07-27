@@ -1,8 +1,10 @@
-torch
-transformers
+fastapi
+uvicorn
+requests
 librosa
-phonemizer
+torch
+numpy
+transformers
+pydantic
 deepgram-sdk
 python-dotenv
-uvicorn
-fastapi
