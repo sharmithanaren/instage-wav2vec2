@@ -3,8 +3,9 @@ import time
 import requests
 import librosa
 import torch
+import numpy as np
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, File, UploadFile
 from deepgram import DeepgramClient, SpeakOptions
 from dotenv import load_dotenv
 
@@ -14,12 +15,16 @@ load_dotenv()
 # Initialize the FastAPI app
 app = FastAPI()
 
-# Check if CUDA is available and set the device accordingly
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # Load the processor and model
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 processor = Wav2Vec2Processor.from_pretrained("bookbot/wav2vec2-ljspeech-gruut")
 model = Wav2Vec2ForCTC.from_pretrained("bookbot/wav2vec2-ljspeech-gruut").to(device)
+
+print(device)
+
+# ratio = model.config.inputs_to_logits_ratio
+# sr = processor.feature_extractor.sampling_rate
+# time_offset = ratio / sr
 
 # Deepgram API details
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
@@ -53,23 +58,101 @@ phonemeToVisemeIDMapping = {
     "d": 19, "t": 19, "n": 19, "θ": 19,
     "k": 20, "g": 20, "ɡ": 20, "ŋ": 20,
     "p": 21, "b": 21, "m": 21,
-    "eɪ": 1
+    "eɪ": 1,  # Same as "æ", "ə", "ʌ"
+    "aɪ": 11,  # Same as "aɪ"
+    "aʊ": 9,  # Same as "aʊ"
+    "d͡ʒ": 16,  # Same as "dʒ", "ʒ"
+    "oʊ": 8,  # Same as "o"
+    "t͡ʃ": 16,  # Same as "tʃ", "ʃ"
+    "ɔɪ": 10,  # Same as "ɔɪ"
+    "ɝ": 5,  # Same as "ɝ"
+    "ɡ": 20  # Same as "k", "g", "ŋ"
 }
 
-# Function to map phonemes to viseme IDs with offsets
+phonemeToVisemeMapping = {
+    "Silence": "SIL",
+    "æ": "A_E",
+    "ə": "A_E",
+    "ʌ": "A_E",
+    "ɑ": "Ah",
+    "ɔ": "Oh",
+    "ɛ": "EE",
+    "ʊ": "W_OO",
+    "ɝ": "Er",
+    "j": "EE",
+    "i": "EE",
+    "ɪ": "Ih",
+    "w": "W_OO",
+    "u": "W_OO",
+    "o": "Oh",
+    "aʊ": "W_OO",
+    "ɔɪ": "Oh",
+    "aɪ": "A_E",
+    "h": "SIL",
+    "ɹ": "R",
+    "l": "T_L_D",
+    "s": "S_Z",
+    "z": "S_Z",
+    "ʃ": "S_Z",
+    "tʃ": "CH_J",
+    "dʒ": "CH_J",
+    "ʒ": "S_Z",
+    "ð": "Th",
+    "f": "F_V",
+    "v": "F_V",
+    "d": "T_L_D",
+    "t": "T_L_D",
+    "n": "T_L_D",
+    "θ": "Th",
+    "k": "K_G",
+    "g": "K_G",
+    "ŋ": "K_G",
+    "p": "B_M_P",
+    "b": "B_M_P",
+    "m": "B_M_P",
+    "[PAD]": "SIL",
+    "[UNK]": "SIL",
+    "d͡ʒ": "CH_J",
+    "eɪ": "A_E",
+    "oʊ": "Oh",
+    "t͡ʃ": "CH_J",
+    "|": "SIL",
+    "ɚ": "Er",
+    "ɡ": "K_G",
+    "aɪ": "A_E",  # Already exists, no change needed
+    "aʊ": "W_OO",  # Already exists, no change needed
+    "oʊ": "Oh",  # Already exists, no change needed
+    "d͡ʒ": "CH_J",  # Already exists, no change needed
+    "t͡ʃ": "CH_J",  # Already exists, no change needed
+    "ɔɪ": "Oh",  # Already exists, no change needed
+}
+
+
+# Function to map phonemes to viseme IDs and mappings with offsets
 def map_phonemes_to_visemes_with_offsets(transcription):
+
+    time_offset = 0.02
+
     visemes_with_offsets = []
+
     for item in transcription['char_offsets'][0]:
         phoneme = item['char']
-        if phoneme == " ":  # Skip if the phoneme is a space
+        
+        # Skip the current space if the previous phoneme was also a space
+        if phoneme == " ":
             continue
+
         start_offset = item['start_offset']
-        end_offset = item['end_offset']
         viseme_id = phonemeToVisemeIDMapping.get(phoneme, 0)  # Default to "Silence" ID if phoneme not found
+        #viseme_mapping = phonemeToVisemeMapping.get(phoneme, "SIL")  # Default to "SIL" if phoneme not found
+        
+        
         visemes_with_offsets.append({
-            'visemeId': viseme_id,
-            'audioOffset': int(start_offset)
+            'visemeId': int(viseme_id),  # Ensure it's a Python int
+            #'visemeMapping': viseme_mapping,
+            'audioOffset': int(round(start_offset * time_offset*1000, 4)) # ref: https://github.com/huggingface/transformers/blob/main/src/transformers/models/wav2vec2/tokenization_wav2vec2.py
         })
+    
     return visemes_with_offsets
 
 # Function to process a single audio file
@@ -78,9 +161,7 @@ def process_audio_file(audio_file_path):
     audio, rate = librosa.load(audio_file_path, sr=16000)
 
     # Tokenize the input audio
-    inputs = processor(audio, return_tensors="pt", sampling_rate=rate)
-
-    inputs = {key: value.to(device) for key, value in inputs.items()}
+    inputs = processor(audio, return_tensors="pt", padding=True).to(device)
 
     # Start time measurement
     start = time.time()
@@ -91,7 +172,7 @@ def process_audio_file(audio_file_path):
 
     # Decode the logits to text with character offsets
     predicted_ids = torch.argmax(logits, dim=-1)
-    transcription = processor.batch_decode(predicted_ids, output_char_offsets=True, clean_up_tokenization_spaces=True)
+    transcription = processor.batch_decode(predicted_ids, output_char_offsets=True)
 
     # End time measurement
     end = time.time()
@@ -102,7 +183,7 @@ def process_audio_file(audio_file_path):
     # Map the phonemes to viseme IDs with offsets
     viseme_transcription_with_offsets = map_phonemes_to_visemes_with_offsets(transcription)
     
-    return (audio_file_path, time_taken_ms, viseme_transcription_with_offsets)
+    return (audio_file_path, int(time_taken_ms), viseme_transcription_with_offsets)
 
 # Function to synthesize audio using Deepgram
 def synthesize_audio(text, output_file_path):
@@ -113,11 +194,14 @@ def synthesize_audio(text, output_file_path):
                 if chunk:
                     output_file.write(chunk)
 
-@app.get("/")
-async def read_root():
-    return {"message": "API is running"}
+class VisemeTranscription(BaseModel):
+    visemeId: int
+    audioOffset: int
 
-@app.post("/process")
+class ProcessedAudioResponse(BaseModel):
+    viseme_transcription_with_offsets: list[VisemeTranscription]
+
+@app.post("/process_text", response_model=ProcessedAudioResponse)
 async def process_text(input_text: str = Form(...)):
     # Create or truncate the output file
     temp_dir = 'temp_audio_files'
@@ -137,6 +221,21 @@ async def process_text(input_text: str = Form(...)):
         'time_taken_ms': time_taken_ms,
         'viseme_transcription_with_offsets': viseme_transcription_with_offsets
     }
+@app.post("/process_audio")
+async def process_audio(audio: UploadFile = File(...)):
+    audio_file = audio
+    temp_dir = 'temp_audio_files'
+    os.makedirs(temp_dir, exist_ok=True)
+    file_path = os.path.join(temp_dir, audio.filename)
+
+    with open(file_path, "wb") as buffer:
+        buffer.write(await audio.read())
+
+    audio_file_path, time_taken_ms, viseme_transcription_with_offsets = process_audio_file(file_path)
+
+    os.remove(file_path)
+    
+    return viseme_transcription_with_offsets
 
 if __name__ == '__main__':
     import uvicorn
